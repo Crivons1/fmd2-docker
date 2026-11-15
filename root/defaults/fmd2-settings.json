@@ -34,7 +34,7 @@
     "ShowFavoritesTabOnNewManga" : false,
     "ShowDownloadsTabOnNewTasks" : true,
     "ShowDownloadsToolbarDeleteAll" : false,
-    "LoadMangaCover" : false,
+    "LoadMangaCover" : true,
     "ShowBalloonHint" : true
   },
   "connections" : {
