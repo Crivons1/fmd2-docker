@@ -3,6 +3,8 @@ name: Build image
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'   # weekly, so the baked-in site modules stay recent
   workflow_dispatch:
 
 jobs:

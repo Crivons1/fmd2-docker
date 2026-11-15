@@ -35,6 +35,8 @@ Or with the Compose Manager plugin: Docker → Add New Stack → name it `fmd2` 
 | `/config` | `/mnt/user/appdata/fmd2` | FMD2 itself, settings, favourites, Wine, staging |
 | `/library` | `/mnt/user/books/mangas` | Manga library, one folder per series |
 
+Site modules (the per-website scripts) are not part of the FMD2 release, so the image carries a copy and fetches the current ones from the FMD2 repository at every container start. Restart the container to update them; set `FMD2_UPDATE_MODULES=false` to turn that off.
+
 Optional variables: `CUSTOM_USER` and `PASSWORD` put a login on the web page; `ORGANISER_INTERVAL` (seconds between scans, default 30); `ORGANISER_SETTLE_SECONDS` (how long a file must be untouched, default 45).
 
 ## Do not change these FMD2 options

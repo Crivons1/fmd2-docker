@@ -19,6 +19,11 @@ RUN apt-get update && \
       "https://github.com/dazedcat19/FMD2/releases/download/${FMD2_VERSION}/fmd_${FMD2_VERSION}_x86_64-win64.7z" && \
     7z x -y -o/opt/fmd2-dist /tmp/fmd2.7z > /dev/null && \
     test -f /opt/fmd2-dist/fmd.exe && \
+    # The release ships without site modules: take lua/ from the source tree.
+    curl -fsSL -o /tmp/fmd2-src.tar.gz https://codeload.github.com/dazedcat19/FMD2/tar.gz/refs/heads/master && \
+    tar -xzf /tmp/fmd2-src.tar.gz -C /opt/fmd2-dist --strip-components=1 --wildcards '*/lua/*' && \
+    test -d /opt/fmd2-dist/lua/modules && \
+    rm /tmp/fmd2-src.tar.gz && \
     rm -rf /opt/fmd2-dist/userdata /tmp/fmd2.7z && \
     echo "${FMD2_VERSION}" > /opt/fmd2-dist/.image-version && \
     apt-get purge -y p7zip-full && apt-get autoremove -y && \
