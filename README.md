@@ -28,6 +28,8 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-fmd2.xml https://raw.gi
 
 Then Docker → Add Container → Template → `fmd2`, check the two paths, Apply, and open `http://<server>:3000/`.
 
+Or with the Compose Manager plugin: Docker → Add New Stack → name it `fmd2` → Edit Stack → Compose File, paste [docker-compose.yml](docker-compose.yml), Save, Compose Up.
+
 | Container path | Default on Unraid | Purpose |
 |---|---|---|
 | `/config` | `/mnt/user/appdata/fmd2` | FMD2 itself, settings, favourites, Wine, staging |

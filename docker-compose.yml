@@ -1,0 +1,17 @@
+services:
+  fmd2:
+    image: ghcr.io/crivons1/fmd2-docker:latest
+    container_name: fmd2
+    environment:
+      - PUID=99
+      - PGID=100
+      - UMASK=000
+      - TZ=Europe/Lisbon
+    ports:
+      - "3000:3000"
+    volumes:
+      - /mnt/user/appdata/fmd2:/config
+      - /mnt/user/books/mangas:/library
+    labels:
+      net.unraid.docker.webui: "http://[IP]:[PORT:3000]/"
+    restart: unless-stopped
