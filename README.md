@@ -59,4 +59,6 @@ docker build -t fmd2 https://github.com/Crivons1/fmd2-docker.git#main
 
 ## Credits
 
+`icon.png` is the FMD2 application icon, taken from the FMD2 project (GPLv2).
+
 Container recipe based on the archived [Banh-Canh/docker-FMD2](https://github.com/Banh-Canh/docker-FMD2) and [ElryGH/docker-FMD2](https://github.com/ElryGH/docker-FMD2) (MIT).

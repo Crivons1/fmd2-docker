@@ -14,4 +14,5 @@ services:
       - /mnt/user/books/mangas:/library
     labels:
       net.unraid.docker.webui: "http://[IP]:[PORT:3000]/"
+      net.unraid.docker.icon: "https://raw.githubusercontent.com/Crivons1/fmd2-docker/main/icon.png"
     restart: unless-stopped
