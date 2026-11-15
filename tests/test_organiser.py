@@ -84,6 +84,21 @@ class FilingTests(unittest.TestCase):
                     "<PageCount>2</PageCount>"):
             self.assertIn(bit, xml)
 
+    def test_matches_folder_with_release_tags(self):
+        os.makedirs(os.path.join(org.LIBRARY, "Frieren - Beyond Journey's End (Digital) (1r0n)"))
+        os.makedirs(os.path.join(org.LIBRARY, "Fruits Basket Another (2018-2022) (Digital) (1r0n)"))
+        make_cbz(os.path.join(org.STAGING, "Frieren Beyond Journey's End ~~ A ~~ B ~~ Site", "Ch.140.cbz"))
+        make_cbz(os.path.join(org.STAGING, "Fruits Basket Another ~~ A ~~  ~~ Site", "Vol.4.cbz"))
+        org.scan_once(set())
+        self.assertEqual(len(os.listdir(org.LIBRARY)), 2)
+        dest = os.path.join(org.LIBRARY, "Frieren - Beyond Journey's End (Digital) (1r0n)",
+                            "Frieren - Beyond Journey's End c140.cbz")
+        self.assertTrue(os.path.isfile(dest))
+        with zipfile.ZipFile(dest) as z:
+            self.assertIn("<Series>Frieren - Beyond Journey's End</Series>", z.read("ComicInfo.xml").decode())
+        self.assertTrue(os.path.isfile(os.path.join(
+            org.LIBRARY, "Fruits Basket Another (2018-2022) (Digital) (1r0n)", "Fruits Basket Another v04.cbz")))
+
     def test_never_overwrites_and_keeps_existing_comicinfo(self):
         existing = os.path.join(org.LIBRARY, "Berserk", "Berserk c001.cbz")
         make_cbz(existing)

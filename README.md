@@ -14,7 +14,7 @@ FMD2 is a Windows program, so it runs under Wine and its window is shown in the 
    - renames the file to `Series v03 c021.cbz`, `Series c021.cbz` or `Series v03.cbz`,
    - moves it into `/library/<Series>/`.
 
-If the library already has a folder for the series (compared ignoring case, accents and punctuation), that folder and its spelling of the name are used. A file that already exists in the library is never overwritten: the new one stays in staging and the container log says so. Nothing already in the library is renamed or changed.
+If the library already has a folder for the series, that folder and its spelling of the name are used. Names are compared ignoring case, accents, punctuation and release tags in brackets, so `Frieren (Digital) (1r0n)` is recognised as the folder for `Frieren`. A file that already exists in the library is never overwritten: the new one stays in staging and the container log says so. Nothing already in the library is renamed or changed.
 
 FMD2 only knows the title, author, artist and source site, so that is all the metadata there is. Summaries, genres and covers come from Kavita or Komga's own metadata matching.
 
@@ -33,7 +33,7 @@ Or with the Compose Manager plugin: Docker → Add New Stack → name it `fmd2` 
 | Container path | Default on Unraid | Purpose |
 |---|---|---|
 | `/config` | `/mnt/user/appdata/fmd2` | FMD2 itself, settings, favourites, Wine, staging |
-| `/library` | `/mnt/user/books/mangas` | Manga library, one folder per series |
+| `/library` | `/mnt/user/Books/Mangas` | Manga library, one folder per series |
 
 Site modules (the per-website scripts) are not part of the FMD2 release, so the image carries a copy and fetches the current ones from the FMD2 repository at every container start. Restart the container to update them; set `FMD2_UPDATE_MODULES=false` to turn that off.
 

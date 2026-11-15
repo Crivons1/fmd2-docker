@@ -36,6 +36,8 @@ CH_RE = re.compile(
     re.I,
 )
 ANY_NUM_RE = re.compile(NUM)
+TAG_RE = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
+LAST_ERROR = {}
 BAD_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
@@ -146,17 +148,32 @@ def add_comicinfo(path, meta, vol, ch, title):
     return True
 
 
+def strip_tags(name):
+    """'Frieren (2021) (Digital) (1r0n)' -> 'Frieren': drop (...) and [...] release tags."""
+    return clean_name(TAG_RE.sub(" ", name))
+
+
 def find_series_dir(series):
-    """Existing library folder for this series, else a new one named after it."""
+    """Existing library folder for this series, else a new one named after it.
+
+    An exact name match wins; otherwise folders are compared without their
+    release tags, so 'Frieren (Digital) (1r0n)' is the folder for 'Frieren'.
+    """
     key = norm(series)
+    loose_key = norm(strip_tags(series)) or key
+    loose = None
     try:
         with os.scandir(LIBRARY) as entries:
-            for entry in entries:
-                if entry.is_dir() and norm(entry.name) == key:
+            for entry in sorted(entries, key=lambda e: e.name):
+                if not entry.is_dir():
+                    continue
+                if norm(entry.name) == key:
                     return entry.path
+                if loose is None and norm(strip_tags(entry.name)) == loose_key:
+                    loose = entry.path
     except FileNotFoundError:
         pass
-    return os.path.join(LIBRARY, series)
+    return loose or os.path.join(LIBRARY, series)
 
 
 def is_finished(path, now):
@@ -180,8 +197,9 @@ def process(path, folder_name):
     stem, ext = os.path.splitext(os.path.basename(path))
     vol, ch, title = parse_chapter(stem)
     dest_dir = find_series_dir(meta["series"])
-    # Use the library folder's spelling so readers see one series, not two.
-    meta["series"] = os.path.basename(dest_dir)
+    # Use the library folder's spelling (minus release tags) so readers see
+    # one series, not two.
+    meta["series"] = strip_tags(os.path.basename(dest_dir)) or os.path.basename(dest_dir)
     dest = os.path.join(dest_dir, target_filename(meta["series"], vol, ch, title, ext.lower()))
     if os.path.exists(dest):
         log("SKIP, already in library: %s (left in staging: %s)" % (dest, path))
@@ -213,8 +231,11 @@ def scan_once(skipped):
                 try:
                     if not process(path, folder.name):
                         skipped.add(path)
+                    LAST_ERROR.pop(path, None)
                 except Exception as exc:  # keep the loop alive; retry next pass
-                    log("ERROR on %s: %s" % (path, exc))
+                    if LAST_ERROR.get(path) != str(exc):  # say it once, keep retrying quietly
+                        LAST_ERROR[path] = str(exc)
+                        log("ERROR on %s: %s (will keep retrying)" % (path, exc))
         # drop the staging series folder once it is empty
         try:
             for root, dirs, files in os.walk(folder.path, topdown=False):
