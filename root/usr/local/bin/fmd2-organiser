@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""Files finished FMD2 downloads into a Kavita/Komga library.
+
+FMD2 saves into a staging folder as
+    <STAGING>/<Manga> ~~ <Author> ~~ <Artist> ~~ <Website>/<chapter name>.cbz
+For every finished .cbz this script:
+  * works out volume / chapter numbers from the chapter name,
+  * adds a ComicInfo.xml (series, number, volume, title, author, artist) if
+    the archive has none,
+  * renames it to "<Series> v03 c021.cbz" (or only vNN / only cNNN),
+  * moves it to <LIBRARY>/<Series>/, reusing an existing series folder (and
+    its spelling of the name) when one matches, ignoring case, accents and
+    punctuation.
+It never overwrites or touches a file that is already in the library.
+"""
+import os
+import re
+import shutil
+import sys
+import time
+import unicodedata
+import zipfile
+from xml.sax.saxutils import escape
+
+STAGING = os.environ.get("STAGING_DIR", "/config/staging")
+LIBRARY = os.environ.get("LIBRARY_DIR", "/library")
+INTERVAL = int(os.environ.get("ORGANISER_INTERVAL", "30"))
+SETTLE = int(os.environ.get("ORGANISER_SETTLE_SECONDS", "45"))
+SEP = "~~"
+EXTS = (".cbz", ".zip")
+
+NUM = r"(\d+(?:[.,]\d+)?)"
+VOL_RE = re.compile(r"(?<![a-z])(?:volume|vol|tomo|tome|band|v)\.?\s*" + NUM, re.I)
+CH_RE = re.compile(
+    r"(?<![a-z])(?:chapter|chapitre|cap[ií]tulo|episode|epis[oó]dio|chap|cap|ch|ep|c|#)\.?\s*" + NUM,
+    re.I,
+)
+ANY_NUM_RE = re.compile(NUM)
+BAD_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def log(msg):
+    print("[organiser] " + msg, flush=True)
+
+
+def norm(text):
+    """Comparison key: no accents, case or punctuation."""
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def clean_name(text):
+    text = BAD_CHARS.sub("", text)
+    return re.sub(r"\s+", " ", text).strip(" .")
+
+
+def fmt_num(raw, width):
+    raw = raw.replace(",", ".")
+    whole, _, frac = raw.partition(".")
+    frac = frac.rstrip("0")
+    out = str(int(whole)).zfill(width)
+    return out + "." + frac if frac else out
+
+
+def plain_num(raw):
+    return fmt_num(raw, 1)
+
+
+def parse_folder(name):
+    """'<Manga> ~~ <Author> ~~ <Artist> ~~ <Website>' -> dict."""
+    parts = [p.strip() for p in name.split(SEP)]
+    parts += [""] * (4 - len(parts))
+    return {
+        "series": clean_name(parts[0]) or clean_name(name),
+        "author": parts[1],
+        "artist": parts[2],
+        "website": parts[3],
+    }
+
+
+def parse_chapter(name):
+    """Chapter name from the site -> (volume, chapter, title); numbers are raw strings or None."""
+    vol = ch = None
+    rest = name
+    m = VOL_RE.search(rest)
+    if m:
+        vol = m.group(1)
+        rest = rest[: m.start()] + " " + rest[m.end():]
+    m = CH_RE.search(rest)
+    if m:
+        ch = m.group(1)
+        rest = rest[: m.start()] + " " + rest[m.end():]
+    elif vol is None:
+        m = ANY_NUM_RE.search(rest)
+        if m:
+            ch = m.group(1)
+            rest = rest[: m.start()] + " " + rest[m.end():]
+    title = re.sub(r"\s+", " ", rest).strip(" -–—:._")
+    return vol, ch, title
+
+
+def target_filename(series, vol, ch, title, ext):
+    bits = [series]
+    if vol is not None:
+        bits.append("v" + fmt_num(vol, 2))
+    if ch is not None:
+        bits.append("c" + fmt_num(ch, 3))
+    if vol is None and ch is None:
+        bits.append("- " + (clean_name(title) or "extra"))
+    return " ".join(bits) + ext
+
+
+def comicinfo_xml(meta, vol, ch, title, pages):
+    fields = [("Series", meta["series"])]
+    if title:
+        fields.append(("Title", title))
+    if ch is not None:
+        fields.append(("Number", plain_num(ch)))
+    if vol is not None:
+        fields.append(("Volume", plain_num(vol)))
+    if meta["author"]:
+        fields.append(("Writer", meta["author"]))
+    if meta["artist"]:
+        fields.append(("Penciller", meta["artist"]))
+    if meta["website"]:
+        fields.append(("Notes", "Downloaded with FMD2 from " + meta["website"]))
+    fields.append(("PageCount", str(pages)))
+    fields.append(("Manga", "Yes"))
+    body = "".join("  <%s>%s</%s>\n" % (k, escape(v), k) for k, v in fields)
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n' + body + "</ComicInfo>\n"
+    )
+
+
+def add_comicinfo(path, meta, vol, ch, title):
+    """Append ComicInfo.xml unless the archive already has one."""
+    with zipfile.ZipFile(path, "a") as z:
+        names = z.namelist()
+        if any(os.path.basename(n).lower() == "comicinfo.xml" for n in names):
+            return False
+        pages = sum(1 for n in names if n.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif")))
+        z.writestr("ComicInfo.xml", comicinfo_xml(meta, vol, ch, title, pages))
+    return True
+
+
+def find_series_dir(series):
+    """Existing library folder for this series, else a new one named after it."""
+    key = norm(series)
+    try:
+        with os.scandir(LIBRARY) as entries:
+            for entry in entries:
+                if entry.is_dir() and norm(entry.name) == key:
+                    return entry.path
+    except FileNotFoundError:
+        pass
+    return os.path.join(LIBRARY, series)
+
+
+def is_finished(path, now):
+    """Finished = untouched for SETTLE seconds, no chapter folder still beside it, valid zip."""
+    try:
+        if now - os.path.getmtime(path) < SETTLE:
+            return False
+    except OSError:
+        return False
+    if os.path.isdir(os.path.splitext(path)[0]):
+        return False
+    try:
+        with zipfile.ZipFile(path) as z:
+            return bool(z.namelist())
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
+def process(path, folder_name):
+    meta = parse_folder(folder_name)
+    stem, ext = os.path.splitext(os.path.basename(path))
+    vol, ch, title = parse_chapter(stem)
+    dest_dir = find_series_dir(meta["series"])
+    # Use the library folder's spelling so readers see one series, not two.
+    meta["series"] = os.path.basename(dest_dir)
+    dest = os.path.join(dest_dir, target_filename(meta["series"], vol, ch, title, ext.lower()))
+    if os.path.exists(dest):
+        log("SKIP, already in library: %s (left in staging: %s)" % (dest, path))
+        return False
+    add_comicinfo(path, meta, vol, ch, title)
+    os.makedirs(dest_dir, exist_ok=True)
+    tmp = dest + ".part"
+    shutil.copyfile(path, tmp)
+    os.replace(tmp, dest)
+    os.remove(path)
+    log("filed %s -> %s" % (os.path.basename(path), dest))
+    return True
+
+
+def scan_once(skipped):
+    now = time.time()
+    if not os.path.isdir(STAGING):
+        return
+    for folder in sorted(os.scandir(STAGING), key=lambda e: e.name):
+        if not folder.is_dir():
+            continue
+        for root, _dirs, files in os.walk(folder.path):
+            for name in sorted(files):
+                path = os.path.join(root, name)
+                if not name.lower().endswith(EXTS) or path in skipped:
+                    continue
+                if not is_finished(path, now):
+                    continue
+                try:
+                    if not process(path, folder.name):
+                        skipped.add(path)
+                except Exception as exc:  # keep the loop alive; retry next pass
+                    log("ERROR on %s: %s" % (path, exc))
+        # drop the staging series folder once it is empty
+        try:
+            for root, dirs, files in os.walk(folder.path, topdown=False):
+                if not dirs and not files and now - os.path.getmtime(root) > SETTLE:
+                    os.rmdir(root)
+        except OSError:
+            pass
+
+
+def main():
+    os.umask(int(os.environ.get("UMASK", "000"), 8))
+    log("staging=%s library=%s every %ss" % (STAGING, LIBRARY, INTERVAL))
+    skipped = set()
+    if "--once" in sys.argv:
+        scan_once(skipped)
+        return
+    while True:
+        scan_once(skipped)
+        time.sleep(INTERVAL)
+
+
+if __name__ == "__main__":
+    main()

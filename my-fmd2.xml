@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>fmd2</Name>
+  <Repository>ghcr.io/crivons1/fmd2-docker:latest</Repository>
+  <Registry>https://github.com/Crivons1/fmd2-docker/pkgs/container/fmd2-docker</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Crivons1/fmd2-docker/issues</Support>
+  <Project>https://github.com/dazedcat19/FMD2</Project>
+  <Overview>Free Manga Downloader 2 (Windows app under Wine) with its window shown in the browser. Finished downloads are renamed, tagged with ComicInfo.xml and filed into your manga library for Kavita or Komga.</Overview>
+  <Category>Downloaders:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Crivons1/fmd2-docker/main/my-fmd2.xml</TemplateURL>
+  <Config Name="Web UI port" Target="3000" Default="3000" Mode="tcp" Description="FMD2 window in the browser" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/fmd2" Mode="rw" Description="FMD2 program, settings, favourites, Lua modules, Wine prefix, staging folder" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/fmd2</Config>
+  <Config Name="Manga library" Target="/library" Default="/mnt/user/books/mangas" Mode="rw" Description="Your manga folder (one folder per series). Finished downloads are filed here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/books/mangas</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User id (99 = nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group id (100 = users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="000" Mode="" Description="File permission mask" Type="Variable" Display="advanced" Required="false" Mask="false">000</Config>
+</Container>

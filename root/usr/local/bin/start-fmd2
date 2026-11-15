@@ -1,0 +1,11 @@
+#!/bin/bash
+# Keeps FMD2 running inside the desktop session.
+# `wineserver -w` waits for every Wine process to end, so FMD2 restarting
+# itself (module updates, in-app update) does not spawn a second copy.
+cd /config/FMD2 || exit 1
+
+while true; do
+    wine fmd.exe
+    wineserver -w
+    sleep 2
+done
